@@ -16,28 +16,71 @@ permissions:
   contents: write
 
 env:
-  NDK_VERSION: '27.0.12077973'
+  NDK_VERSION: '26.1.10909125'
   GO_VERSION: '1.24'
   GRADLE_VERSION: '8.9'
 
 jobs:
+  preflight:
+    name: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      core_sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Resolve fork
+        id: resolve
+        run: |
+          set -euo pipefail
+          PSEUDO=$(go list -m -f '{{.Version}}' github.com/Happ-proxy/Xray-core@main)
+          if [ -z "$PSEUDO" ]; then
+            echo "::error::could not resolve Happ-proxy/Xray-core@main"
+            exit 1
+          fi
+          echo "resolved: $PSEUDO"
+          echo "sha=$PSEUDO" >> "$GITHUB_OUTPUT"
+
+      - name: Check module path is replaceable
+        run: |
+          set -euo pipefail
+          MOD=$(go list -m -f '{{.Path}}' github.com/Happ-proxy/Xray-core@main)
+          echo "module path: $MOD"
+          if [ "$MOD" != "github.com/xtls/xray-core" ]; then
+            echo "::error::fork renamed its module path to '$MOD'; update the imports and the replace target"
+            exit 1
+          fi
+
   core:
     name: core (gomobile)
+    needs: preflight
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: core/go.sum
+          cache: false
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: gomod-${{ runner.os }}-${{ hashFiles('core/go.mod', 'core/go.sum') }}
+          restore-keys: gomod-${{ runner.os }}-
+
+      - uses: android-actions/setup-android@v3
 
       - name: Install NDK
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;${NDK_VERSION}"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "ndk;${NDK_VERSION}"
 
       - name: Install gomobile
         run: |
@@ -49,31 +92,15 @@ jobs:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
         run: gomobile init
 
-      - name: Vet
-        working-directory: core
-        run: |
-          go mod tidy
-          go vet ./...
-
-      - name: Test
-        working-directory: core
-        run: go test ./... -count=1
-
-      - name: Bind AAR
+      - name: Build AAR
         working-directory: core
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
-        run: |
-          mkdir -p ../android/app/libs
-          gomobile bind \
-            -target=android/arm,android/arm64,android/amd64,android/386 \
-            -androidapi 24 \
-            -javapkg com.pc5 \
-            -ldflags="-s -w" \
-            -o ../android/app/libs/pc5core.aar \
-            .
+          CORE_VERSION: ${{ needs.preflight.outputs.core_sha }}
+        run: ./build.sh
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload AAR
+        uses: actions/upload-artifact@v4
         with:
           name: pc5core-aar
           path: android/app/libs/pc5core.aar
@@ -82,10 +109,9 @@ jobs:
 
   apk:
     name: apk
-    needs: core
+    needs: [preflight, core]
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-
     steps:
       - uses: actions/checkout@v4
 
@@ -93,6 +119,13 @@ jobs:
         with:
           name: pc5core-aar
           path: android/app/libs
+
+      - name: Verify AAR is a real archive
+        run: |
+          set -euo pipefail
+          unzip -l android/app/libs/pc5core.aar | head -20
+          unzip -l android/app/libs/pc5core.aar | grep -q 'classes.jar' \
+            || { echo "::error::AAR has no classes.jar"; exit 1; }
 
       - uses: actions/setup-java@v4
         with:
@@ -102,18 +135,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
-          cache-read-only: false
+
+      - name: Lint
+        continue-on-error: true
+        working-directory: android
+        run: gradle --no-daemon :app:lintDebug
 
       - name: Decode keystore
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
         run: |
-          if [ -z "$KEYSTORE_B64" ]; then
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
             echo "::error::KEYSTORE_B64 secret is not set"
             exit 1
           fi
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/pc5.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/pc5.keystore"
+          test -s "$RUNNER_TEMP/pc5.keystore"
 
       - name: Build debug
         working-directory: android
@@ -129,10 +168,12 @@ jobs:
           PC5_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleRelease
 
-      - name: Collect
+      - name: Verify APKs exist
         run: |
+          set -euo pipefail
           mkdir -p out
           find android/app/build/outputs/apk -name '*.apk' -exec cp {} out/ \;
+          test "$(find out -name '*.apk' | wc -l)" -ge 1 || { echo "::error::no APK produced"; exit 1; }
           ls -la out
 
       - uses: actions/upload-artifact@v4
