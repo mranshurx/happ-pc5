@@ -1,0 +1,151 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  NDK_VERSION: '27.0.12077973'
+  GO_VERSION: '1.24'
+  GRADLE_VERSION: '8.9'
+
+jobs:
+  core:
+    name: core (gomobile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: core/go.sum
+
+      - name: Install NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;${NDK_VERSION}"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: gomobile init
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+        run: gomobile init
+
+      - name: Vet
+        working-directory: core
+        run: |
+          go mod tidy
+          go vet ./...
+
+      - name: Test
+        working-directory: core
+        run: go test ./... -count=1
+
+      - name: Bind AAR
+        working-directory: core
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+        run: |
+          mkdir -p ../android/app/libs
+          gomobile bind \
+            -target=android/arm,android/arm64,android/amd64,android/386 \
+            -androidapi 24 \
+            -javapkg com.pc5 \
+            -ldflags="-s -w" \
+            -o ../android/app/libs/pc5core.aar \
+            .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc5core-aar
+          path: android/app/libs/pc5core.aar
+          retention-days: 7
+          if-no-files-found: error
+
+  apk:
+    name: apk
+    needs: core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pc5core-aar
+          path: android/app/libs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: false
+
+      - name: Decode keystore
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::KEYSTORE_B64 secret is not set"
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/pc5.keystore"
+
+      - name: Build debug
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Build release
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: android
+        env:
+          PC5_KEYSTORE: ${{ runner.temp }}/pc5.keystore
+          PC5_STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          PC5_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          PC5_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Collect
+        run: |
+          mkdir -p out
+          find android/app/build/outputs/apk -name '*.apk' -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ github.sha }}
+          path: out/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          generate_release_notes: true
+          fail_on_unmatched_files: true
