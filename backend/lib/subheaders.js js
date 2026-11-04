@@ -1,0 +1,38 @@
+'use strict';
+
+/**
+ * Sets the response headers /sub needs now that the client is a first-party app.
+ *
+ * CALL SITE in server.js, inside GET /sub, immediately before the body is sent:
+ *
+ *   const subheaders = require('./lib/subheaders');
+ *   subheaders.apply(res, { expiresAt, providerId: HAPP_PROVIDER_ID, status: 'ok' });
+ */
+
+const TOTAL_BYTES = 107374182400;
+
+function apply(res, opts = {}) {
+  const expiresAt = Number(opts.expiresAt) || 0;
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('profile-title', 'PC5 ANDROID');
+  res.setHeader('profile-update-interval', '1');
+  res.setHeader('hide-settings', '1');
+  res.setHeader('profile-web-page-url', 'https://pc5-android.onrender.com');
+  res.setHeader('support-url', 'https://t.me/Pc5AndroidUpdates');
+  res.setHeader('cache-control', 'no-store');
+
+  if (expiresAt > 0) {
+    res.setHeader(
+      'subscription-userinfo',
+      `upload=0; download=0; total=${TOTAL_BYTES}; expire=${Math.floor(expiresAt / 1000)}`
+    );
+  }
+
+  res.setHeader('x-pc5-status', opts.status || 'ok');
+
+  // Optional: only needed if you also ship the deeplink shell build.
+  if (opts.providerId) res.setHeader('providerid', opts.providerId);
+}
+
+module.exports = { apply };
