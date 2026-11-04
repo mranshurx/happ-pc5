@@ -1,0 +1,33 @@
+package com.pc5.android
+
+/** Process-wide connection state. Single source of truth for the UI. */
+object VpnState {
+
+    enum class Status { IDLE, CONNECTING, UP, ERROR }
+
+    @Volatile
+    var status: Status = Status.IDLE
+        private set
+
+    @Volatile
+    var message: String = ""
+        private set
+
+    private val listeners = mutableSetOf<(Status, String) -> Unit>()
+
+    fun addListener(l: (Status, String) -> Unit) {
+        listeners += l
+    }
+
+    fun removeListener(l: (Status, String) -> Unit) {
+        listeners -= l
+    }
+
+    fun set(s: Status, msg: String = "") {
+        status = s
+        message = msg
+        listeners.toList().forEach { runCatching { it(s, msg) } }
+    }
+
+    fun reset() = set(Status.IDLE)
+}
