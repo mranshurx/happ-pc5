@@ -1,0 +1,5 @@
+-keep class com.pc5.core.** { *; }
+-keep class go.** { *; }
+-keepclassmembers class com.pc5.android.Pc5Bridge { public *; }
+-keepattributes JavascriptInterface
+-keepattributes *Annotation*
