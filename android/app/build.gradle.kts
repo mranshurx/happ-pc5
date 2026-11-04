@@ -13,7 +13,7 @@ android {
         applicationId = "com.pc5.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = (System.getenv("PC5_VERSION_CODE") ?: "2").toInt()
+        versionCode = (System.getenv("PC5_VERSION_CODE") ?: "2").toIntOrNull() ?: 2
         versionName = System.getenv("PC5_VERSION_NAME") ?: "2.0.0"
         resConfigs("en")
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64") }
