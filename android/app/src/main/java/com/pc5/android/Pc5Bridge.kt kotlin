@@ -1,0 +1,55 @@
+package com.pc5.android
+
+import android.content.Context
+import android.net.VpnService
+import android.webkit.JavascriptInterface
+import android.widget.Toast
+
+class Pc5Bridge(private val host: MainActivity, private val ctx: Context) {
+
+    @JavascriptInterface
+    fun consentGiven(): Boolean = VpnService.prepare(ctx) == null
+
+    @JavascriptInterface
+    fun status(): String = VpnState.status.name
+
+    @JavascriptInterface
+    fun message(): String = VpnState.message
+
+    @JavascriptInterface
+    fun deviceId(): String = host.deviceId
+
+    @JavascriptInterface
+    fun start(key: String, mode: String, expiresAt: Double) {
+        host.requestStart(key, mode, expiresAt.toLong())
+    }
+
+    @JavascriptInterface
+    fun stop() {
+        host.runOnUiThread { Pc5VpnService.stop(ctx) }
+    }
+
+    @JavascriptInterface
+    fun reconnect() {
+        host.runOnUiThread {
+            ctx.startService(
+                android.content.Intent(ctx, Pc5VpnService::class.java)
+                    .setAction(Pc5VpnService.ACTION_RECONNECT)
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun setBoot(on: Boolean) {
+        ctx.getSharedPreferences("pc5", Context.MODE_PRIVATE)
+            .edit().putBoolean("autostart", on).apply()
+    }
+
+    @JavascriptInterface
+    fun coreVersion(): String = runCatching { com.pc5.core.Pc5core.version() }.getOrDefault("")
+
+    @JavascriptInterface
+    fun toast(m: String) {
+        host.runOnUiThread { Toast.makeText(ctx, m, Toast.LENGTH_SHORT).show() }
+    }
+}
