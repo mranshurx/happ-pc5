@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>PC5 Android</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000;--panel:#060606;--line:#1c1c1c;--fg:#fff;--dim:#7a7a7a;--dimmer:#4a4a4a;
+    --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--display:"Archivo Black",Impact,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--mono)}
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.055;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'><g fill='white'><ellipse cx='48' cy='58' rx='13' ry='11'/><ellipse cx='33' cy='41' rx='5.5' ry='7'/><ellipse cx='44' cy='36' rx='5.5' ry='7.5'/><ellipse cx='56' cy='36' rx='5.5' ry='7.5'/><ellipse cx='66' cy='42' rx='5.5' ry='7'/></g></svg>");
+    background-size:96px 96px}
+  body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 40%,transparent 35%,#000 100%)}
+  .strip{position:relative;z-index:1;width:100%;max-width:460px;margin:0 auto;min-height:100%;
+    border-left:1px solid var(--line);border-right:1px solid var(--line);
+    padding:28px 22px 40px;display:flex;flex-direction:column}
+  .hidden{display:none!important}
+  .label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  #unlockView{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:16px}
+  .logo{width:64px;height:64px;margin:0 auto 6px;display:grid;place-items:center;border:1px solid var(--line);background:var(--panel)}
+  .logo svg{width:34px;height:34px}
+  h1{font-family:var(--display);font-size:27px;line-height:1.05;margin:0;letter-spacing:-.02em;text-transform:uppercase}
+  .tagline{font-size:11px;color:var(--dim);margin:0 0 10px}
+  .keyrow{display:flex;gap:8px}
+  input[type=text]{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+    font-family:var(--mono);font-size:14px;letter-spacing:.12em;text-transform:uppercase;padding:15px 13px;outline:none}
+  input[type=text]:focus{border-color:#3a3a3a}
+  input::placeholder{color:var(--dimmer)}
+  button{font-family:var(--mono);cursor:pointer;border:1px solid var(--line);background:transparent;
+    color:var(--fg);font-size:11px;letter-spacing:.16em;text-transform:uppercase;padding:15px 16px}
+  button:disabled{opacity:.45}
+  .ghost{padding:15px 14px;color:var(--dim)}
+  .primary{background:var(--fg);color:#000;border-color:var(--fg);font-weight:700}
+  .msg{font-size:11px;color:#ff5f5f;min-height:14px}
+  #dashboardView{flex:1;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:9px}
+  .brand .mark{width:26px;height:26px;border:1px solid var(--line);display:grid;place-items:center;background:var(--panel)}
+  .brand .mark svg{width:15px;height:15px}
+  .brand span{font-family:var(--display);font-size:12px;text-transform:uppercase}
+  #logout{font-size:9px;padding:8px 11px;color:var(--dim)}
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);margin-bottom:20px}
+  .tab{background:transparent;border:0;border-right:1px solid var(--line);padding:12px 4px;
+    font-size:9px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+  .tab:last-child{border-right:0}
+  .tab.on{color:var(--fg);background:var(--panel)}
+  .panel{flex:1}
+  .card{border:1px solid var(--line);background:var(--panel);padding:16px;margin-bottom:14px}
+  .card .label{margin-bottom:14px}
+  .stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #101010}
+  .stat:last-child{border-bottom:0}
+  .stat .k{font-size:9px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+  .stat .v{font-size:12px}
+  #countdown{font-size:19px;font-weight:700}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid #101010}
+  .row:last-child{border-bottom:0}
+  .row .txt b{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:400;display:block}
+  .row .txt i{font-size:9px;color:var(--dimmer);font-style:normal}
+  .sw{width:42px;height:23px;border:1px solid var(--line);background:#0a0a0a;position:relative;padding:0}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;background:#3d3d3d;transition:.18s}
+  .sw.on{border-color:#fff}
+  .sw.on::after{left:21px;background:#fff}
+  #startBtn{margin-top:18px;width:100%;padding:19px;font-size:13px;letter-spacing:.2em}
+  #startBtn.busy{background:#1a1a1a;border-color:#3a3a3a;color:#fff}
+  #startBtn.live{background:#0c2b12;border-color:#1f7a33;color:#5df08a}
+  .hint{font-size:9px;color:var(--dimmer);text-align:center;margin-top:11px;min-height:12px}
+  .step{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid #101010}
+  .step:last-child{border-bottom:0}
+  .step .n{font-family:var(--display);font-size:15px;color:var(--dimmer);min-width:16px}
+  .step p{margin:0;font-size:11px;line-height:1.6;color:#c9c9c9}
+  a.tg{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--fg);
+    border:1px solid var(--line);padding:14px;background:var(--panel);margin-top:12px}
+  a.tg .ic{width:30px;height:30px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;font-weight:700}
+  a.tg small{display:block;color:var(--dimmer);font-size:9px;margin-top:2px}
+  pre#updates{margin:0;padding:14px;border:1px solid var(--line);background:var(--panel);
+    font-size:10px;line-height:1.75;white-space:pre-wrap;color:#cfcfcf;min-height:120px}
+  .foot{margin-top:auto;padding-top:26px;text-align:center;font-size:8px;letter-spacing:.2em;color:var(--dimmer);text-transform:uppercase}
+  #maintView{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:14px}
+</style>
+</head>
+<body>
+<div class="strip">
+
+  <section id="unlockView">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="white"><path d="M6 19V5h6a4 4 0 010 8H8.6v6H6zm2.6-8.4H12a1.9 1.9 0 000-3.8H8.6z"/><rect x="15.6" y="5" width="2.4" height="14"/></svg></div>
+    <h1>Pc5 Android</h1>
+    <p class="tagline">No account. No password. Just your key.</p>
+    <div class="keyrow">
+      <input id="keyInput" type="text" placeholder="PC5-XXXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24">
+      <button class="ghost" id="pasteBtn">Paste</button>
+    </div>
+    <button class="primary" id="unlockBtn">Unlock</button>
+    <div class="msg" id="unlockMsg"></div>
+  </section>
+
+  <section id="dashboardView" class="hidden">
+    <div class="topbar">
+      <div class="brand">
+        <div class="mark"><svg viewBox="0 0 24 24" fill="white"><path d="M6 19V5h6a4 4 0 010 8H8.6v6H6zm2.6-8.4H12a1.9 1.9 0 000-3.8H8.6z"/><rect x="15.6" y="5" width="2.4" height="14"/></svg></div>
+        <span>Pc5</span>
+      </div>
+      <button id="logout">Log out</button>
+    </div>
+    <nav class="tabs">
+      <button class="tab on" data-tab="proxy">Proxy</button>
+      <button class="tab" data-tab="setup">Setup</button>
+      <button class="tab" data-tab="contact">Contact</button>
+      <button class="tab" data-tab="updates">Updates</button>
+    </nav>
+
+    <div class="panel" data-panel="proxy">
+      <div class="card">
+        <div class="label">Active Subscription</div>
+        <div class="stat"><span class="k">Status</span><span class="v" id="statusV">Idle</span></div>
+        <div class="stat"><span class="k">Time Left</span><span class="v" id="countdown">--:--:--</span></div>
+        <div class="stat"><span class="k">Key</span><span class="v" id="keyV">—</span></div>
+        <div class="stat"><span class="k">Device</span><span class="v" id="deviceV">—</span></div>
+        <div class="stat"><span class="k">Expires</span><span class="v" id="expiryV">—</span></div>
+      </div>
+      <div class="card">
+        <div class="label">Features</div>
+        <div class="row">
+          <div class="txt"><b>Aimbot</b><i>force game traffic through tunnel</i></div>
+          <button class="sw" id="swAim" data-feat="aimbot"></button>
+        </div>
+        <div class="row">
+          <div class="txt"><b>Location</b><i>hop ports, resolve nearest node</i></div>
+          <button class="sw" id="swLoc" data-feat="location"></button>
+        </div>
+      </div>
+      <button class="primary" id="startBtn">Start</button>
+      <div class="hint" id="startHint"></div>
+    </div>
+
+    <div class="panel hidden" data-panel="setup">
+      <div class="card">
+        <div class="label">How it works</div>
+        <div class="step"><span class="n">1</span><p>Tap <b>Start</b>. Your profile is applied in-process — nothing else to open.</p></div>
+        <div class="step"><span class="n">2</span><p>Android asks for VPN permission once. Accept it.</p></div>
+        <div class="step"><span class="n">3</span><p>Tap <b>Connected</b> to drop the tunnel, or Disconnect from the notification.</p></div>
+      </div>
+      <div class="card">
+        <div class="label">Features</div>
+        <div class="step"><span class="n">·</span><p><b>Aimbot</b> widens the game profile so match traffic never falls into a direct route.</p></div>
+        <div class="step"><span class="n">·</span><p><b>Location</b> tightens port hopping and pre-resolves the server to the fastest IP.</p></div>
+      </div>
+      <div class="card">
+        <div class="label">Auto start</div>
+        <div class="row">
+          <div class="txt"><b>On boot</b><i>reconnect after reboot</i></div>
+          <button class="sw" id="swBoot"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel hidden" data-panel="contact">
+      <div class="card">
+        <div class="label">Support</div>
+        <p style="font-size:11px;line-height:1.7;color:#c9c9c9;margin:0">Key dead, device locked, or the tunnel won't come up — ping the channel with your key prefix only.</p>
+        <a class="tg" href="https://t.me/Pc5AndroidUpdates" target="_blank" rel="noopener">
+          <span class="ic">✈</span><span>Telegram<small>@Pc5AndroidUpdates</small></span>
+        </a>
+      </div>
+      <div class="card">
+        <div class="label">Engine</div>
+        <p style="font-size:10px;line-height:1.7;color:var(--dim);margin:0">Core <span id="coreV">—</span> embedded. No companion app required.</p>
+      </div>
+    </div>
+
+    <div class="panel hidden" data-panel="updates">
+      <div class="label" style="margin-bottom:10px">Changelog</div>
+      <pre id="updates">Loading…</pre>
+      <button class="ghost" id="refreshBtn" style="width:100%;margin-top:12px">Refresh</button>
+    </div>
+
+    <div class="foot">Pc5 Android</div>
+  </section>
+
+  <section id="maintView" class="hidden">
+    <h1 style="font-size:22px">Maintenance</h1>
+    <p class="tagline" id="maintMsg">We're back shortly.</p>
+    <button class="ghost" id="maintRetry">Retry</button>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const BACKEND = "https://pc5-android.onrender.com";
+  const LS_SESSION = "pc5_android_session", LS_FEATURES = "pc5_features";
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    unlockView:$("unlockView"), dashboardView:$("dashboardView"), maintView:$("maintView"),
+    keyInput:$("keyInput"), pasteBtn:$("pasteBtn"), unlockBtn:$("unlockBtn"), unlockMsg:$("unlockMsg"),
+    logout:$("logout"), startBtn:$("startBtn"), startHint:$("startHint"),
+    statusV:$("statusV"), countdown:$("countdown"), keyV:$("keyV"), deviceV:$("deviceV"), expiryV:$("expiryV"),
+    updates:$("updates"), refreshBtn:$("refreshBtn"), maintMsg:$("maintMsg"), maintRetry:$("maintRetry"),
+    coreV:$("coreV"), swBoot:$("swBoot")
+  };
+
+  const N = window.PC5;
+  let key = null, expiresAt = 0, tick = null, busy = false;
+
+  const did = () => (N ? N.deviceId() : "web");
+
+  function show(w) {
+    el.unlockView.classList.toggle("hidden", w !== "unlock");
+    el.dashboardView.classList.toggle("hidden", w !== "dash");
+    el.maintView.classList.toggle("hidden", w !== "maint");
+  }
+  const flash = (m) => { el.unlockMsg.textContent = m || ""; };
+  const hint = (m) => { el.startHint.textContent = m || ""; };
+
+  function mode() {
+    let f = {};
+    try { f = JSON.parse(localStorage.getItem(LS_FEATURES) || "{}"); } catch {}
+    if (f.aimbot && f.location) return "full";
+    if (f.aimbot) return "aimbot";
+    if (f.location) return "low";
+    return "";
+  }
+
+  const pad = (n) => String(n).padStart(2, "0");
+  function paintClock() {
+    if (!expiresAt) { el.countdown.textContent = "--:--:--"; return; }
+    const left = expiresAt - Date.now();
+    if (left <= 0) { el.countdown.textContent = "00:00:00"; return; }
+    const s = Math.floor(left / 1000);
+    el.countdown.textContent = pad(Math.floor(s/3600)) + ":" + pad(Math.floor(s%3600/60)) + ":" + pad(s%60);
+  }
+  function startClock() { stopClock(); paintClock(); tick = setInterval(paintClock, 1000); }
+  function stopClock() { if (tick) clearInterval(tick); tick = null; }
+
+  function paintIdentity() {
+    el.keyV.textContent = key ? key.slice(0,4) + "-••••" + key.slice(-2) : "—";
+    el.deviceV.textContent = did().slice(0,4) + "…" + did().slice(-4);
+    el.expiryV.textContent = expiresAt ? new Date(expiresAt).toLocaleString() : "—";
+  }
+
+  function paintStatus(st, msg) {
+    const s = st || (N ? N.status() : "IDLE");
+    el.statusV.textContent =
+      s === "UP" ? "Connected" : s === "CONNECTING" ? "Connecting" : s === "ERROR" ? "Error" : "Idle";
+    el.startBtn.classList.toggle("live", s === "UP");
+    el.startBtn.classList.toggle("busy", s === "CONNECTING");
+    el.startBtn.textContent = s === "UP" ? "Connected" : s === "CONNECTING" ? "Connecting…" : "Start";
+    hint(msg || (N ? N.message() : ""));
+  }
+
+  window.pc5State = (st) => paintStatus(st);
+  window.pc5Resume = () => { if (key) paintStatus(); };
+  window.pc5Started = () => { busy = false; paintStatus("CONNECTING"); };
+  window.pc5Consent = (ok) => { if (!ok) { busy = false; paintStatus("IDLE", "VPN permission denied"); } };
+
+  async function checkKey(k) {
+    const r = await fetch(
+      BACKEND + "/api/check-key?key=" + encodeURIComponent(k) + "&did=" + encodeURIComponent(did()),
+      { cache: "no-store" }
+    );
+    return r.json().catch(() => ({}));
+  }
+
+  function save(k, d) {
+    key = k; expiresAt = Number(d.expiresAt) || 0;
+    localStorage.setItem(LS_SESSION, JSON.stringify({ key: k, expiresAt }));
+    paintIdentity(); startClock();
+  }
+  function restore() {
+    try {
+      const s = JSON.parse(localStorage.getItem(LS_SESSION) || "null");
+      if (!s || !s.key) return false;
+      key = s.key; expiresAt = Number(s.expiresAt) || 0;
+      return true;
+    } catch { return false; }
+  }
+  function logout() {
+    if (N) N.stop();
+    key = null; expiresAt = 0;
+    localStorage.removeItem(LS_SESSION);
+    stopClock(); show("unlock");
+  }
+
+  async function unlock() {
+    const k = el.keyInput.value.replace(/\s+/g, "").toUpperCase();
+    if (!k) return flash("Enter your key.");
+    el.unlockBtn.disabled = true; el.unlockBtn.textContent = "Checking…"; flash("");
+    try {
+      const d = await checkKey(k);
+      if (d.maintenance) { el.maintMsg.textContent = d.message || "We're back shortly."; return show("maint"); }
+      if (!d.valid) return flash(d.message || "Invalid key.");
+      save(k, d); el.keyInput.value = ""; show("dash"); paintStatus();
+    } catch { flash("Network error. Try again."); }
+    finally { el.unlockBtn.disabled = false; el.unlockBtn.textContent = "Unlock"; }
+  }
+
+  function start() {
+    if (!key || busy) return;
+    const s = N ? N.status() : "IDLE";
+    if (s === "UP") { N.stop(); return; }
+    busy = true; paintStatus("CONNECTING", "Applying profile…");
+    N.start(key, mode(), expiresAt);
+  }
+
+  function loadFeatures() {
+    let f = {};
+    try { f = JSON.parse(localStorage.getItem(LS_FEATURES) || "{}"); } catch {}
+    document.querySelectorAll(".sw[data-feat]").forEach((b) => b.classList.toggle("on", !!f[b.dataset.feat]));
+    el.swBoot.classList.toggle("on", localStorage.getItem("pc5_boot") === "1");
+  }
+
+  function bindFeatures() {
+    document.querySelectorAll(".sw[data-feat]").forEach((b) => {
+      b.addEventListener("click", () => {
+        b.classList.toggle("on");
+        const f = {};
+        document.querySelectorAll(".sw[data-feat]").forEach((x) => { f[x.dataset.feat] = x.classList.contains("on"); });
+        localStorage.setItem(LS_FEATURES, JSON.stringify(f));
+        if (N && N.status() === "UP") { N.reconnect(); hint("Applying — reconnecting."); }
+      });
+    });
+    el.swBoot.addEventListener("click", () => {
+      const on = el.swBoot.classList.toggle("on");
+      localStorage.setItem("pc5_boot", on ? "1" : "0");
+      if (N) N.setBoot(on);
+    });
+  }
+
+  async function loadUpdates() {
+    el.updates.textContent = "Loading…";
+    try {
+      const r = await fetch(BACKEND + "/frontend/updates/update.txt?t=" + Date.now(), { cache: "no-store" });
+      el.updates.textContent = r.ok ? ((await r.text()).trim() || "Nothing new.") : "No changelog yet.";
+    } catch { el.updates.textContent = "Could not load."; }
+  }
+
+  async function pollMaint() {
+    try {
+      const r = await fetch(BACKEND + "/api/maintenance-status", { cache: "no-store" });
+      const b = await r.json();
+      if (b && b.enabled) { el.maintMsg.textContent = b.message || "We're back shortly."; show("maint"); return true; }
+    } catch {}
+    return false;
+  }
+
+  el.unlockBtn.addEventListener("click", unlock);
+  el.keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+  el.pasteBtn.addEventListener("click", async () => {
+    try { const t = await navigator.clipboard.readText(); if (t) el.keyInput.value = t.trim().toUpperCase(); }
+    catch { flash("Clipboard blocked."); }
+  });
+  el.logout.addEventListener("click", logout);
+  el.startBtn.addEventListener("click", start);
+  el.refreshBtn.addEventListener("click", loadUpdates);
+  el.maintRetry.addEventListener("click", async () => { if (!(await pollMaint())) show(key ? "dash" : "unlock"); });
+
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === t));
+    document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== t.dataset.tab));
+    if (t.dataset.tab === "updates") loadUpdates();
+  }));
+
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && key) paintStatus(); });
+
+  (async function boot() {
+    bindFeatures(); loadFeatures();
+    if (el.coreV && N) el.coreV.textContent = N.coreVersion() || "—";
+    if (await pollMaint()) return;
+    if (restore()) { show("dash"); paintIdentity(); startClock(); paintStatus(); }
+    else show("unlock");
+  })();
+})();
+</script>
+</body>
+</html>
