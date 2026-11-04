@@ -1,0 +1,152 @@
+package com.pc5.android
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.VpnService
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
+import java.security.MessageDigest
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var webView: WebView
+    private lateinit var assetLoader: WebViewAssetLoader
+    private var pendingStart: (() -> Unit)? = null
+
+    val deviceId: String by lazy {
+        val p = getSharedPreferences("pc5", MODE_PRIVATE)
+        p.getString("did", null) ?: fingerprint().also { p.edit().putString("did", it).apply() }
+    }
+
+    private val consentLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            val ok = it.resultCode == RESULT_OK
+            webView.evaluateJavascript("window.pc5Consent && window.pc5Consent($ok)", null)
+            if (ok) pendingStart?.invoke()
+            pendingStart = null
+        }
+
+    private val notifLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
+        webView = WebView(this).apply {
+            setBackgroundColor(Color.BLACK)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                allowFileAccess = false
+                allowContentAccess = false
+                setSupportZoom(false)
+                builtInZoomControls = false
+                useWideViewPort = true
+                textZoom = 100
+            }
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    v: WebView,
+                    r: WebResourceRequest
+                ): WebResourceResponse? = assetLoader.shouldInterceptRequest(r.url)
+
+                override fun shouldOverrideUrlLoading(
+                    v: WebView,
+                    r: WebResourceRequest
+                ): Boolean = r.url.scheme !in listOf("http", "https")
+            }
+            addJavascriptInterface(Pc5Bridge(this@MainActivity, applicationContext), "PC5")
+            loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
+        }
+
+        setContentView(webView)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        VpnState.addListener { status, _ ->
+            runOnUiThread {
+                webView.evaluateJavascript(
+                    "window.pc5State && window.pc5State('${status.name}')", null
+                )
+            }
+        }
+    }
+
+    /** From the bridge: handles the one-time system consent, then starts the service. */
+    fun requestStart(key: String, mode: String, expiresAt: Long) {
+        runOnUiThread {
+            getSharedPreferences("pc5", MODE_PRIVATE).edit()
+                .putString("key", key)
+                .putString("mode", mode)
+                .putLong("expiresAt", expiresAt)
+                .apply()
+
+            val launch = {
+                Pc5VpnService.start(this, key, deviceId, mode, expiresAt)
+                webView.evaluateJavascript("window.pc5Started && window.pc5Started()", null)
+            }
+
+            val consent = VpnService.prepare(this)
+            if (consent != null) {
+                pendingStart = launch
+                consentLauncher.launch(consent)
+            } else {
+                launch()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        webView.evaluateJavascript("window.pc5Resume && window.pc5Resume()", null)
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack() else moveTaskToBack(true)
+    }
+
+    override fun onDestroy() {
+        webView.destroy()
+        super.onDestroy()
+    }
+
+    private fun fingerprint(): String {
+        val raw = listOf(
+            Build.MANUFACTURER,
+            Build.MODEL,
+            Build.DEVICE,
+            Build.VERSION.SDK_INT.toString(),
+            Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "",
+            resources.displayMetrics.widthPixels.toString(),
+            resources.displayMetrics.heightPixels.toString(),
+            resources.configuration.locales[0].toString()
+        ).joinToString("|")
+        val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
+        return "D" + digest.joinToString("") { "%02x".format(it) }.take(20)
+    }
+}
