@@ -8,6 +8,7 @@ captures/
 .cxx/
 android/app/libs/*.aar
 !android/app/libs/.gitkeep
+core/go.sum
 core/vendor/
 *.keystore
 *.jks
